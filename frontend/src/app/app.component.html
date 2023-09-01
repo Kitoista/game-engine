@@ -1,0 +1,13 @@
+<canvas #canvas width="640px" height="480px"></canvas>
+<div>
+    Ping: {{ gameService.ping$ | async }}
+</div>
+<div>
+    Tick rate: {{ Game.baseTickRate }}
+</div>
+<div>
+    Server update rate: {{ Game.refreshRate }}
+</div>
+<div>
+    <button (click)="gameService.isPredictAllowed = !gameService.isPredictAllowed">Predicition {{ gameService.isPredictAllowed ? 'ON' : 'OFF' }}</button>
+</div>

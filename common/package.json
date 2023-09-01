@@ -1,0 +1,21 @@
+{
+  "name": "game-engine-common",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "copy .\\src\\* ..\\backend\\common && copy .\\src\\* ..\\frontend\\src\\common",
+    "dev": "watch \"npm run build\" ./src --interval=1",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^20.4.1",
+    "nodemon": "^3.0.1",
+    "typescript": "^5.1.6"
+  },
+  "dependencies": {
+    "watch": "^1.0.2"
+  }
+}
