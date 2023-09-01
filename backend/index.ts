@@ -2,7 +2,7 @@ import express, { Express, Request, Response } from 'express';
 import dotenv from 'dotenv';
 import { interval } from 'rxjs';
 import { Game, GameState, GameObject, PlayerInputEvent } from './common/game';
-import { Rectangle } from './common/engine';
+import { Rectangle, Vector } from './common/engine';
 
 const cors = require('cors');
 
@@ -11,7 +11,12 @@ dotenv.config();
 const app: Express = express();
 const port = process.env.PORT;
 
-const player = new GameObject();
+enum Layer {
+    WALLS = 0,
+    PLAYERS = 1
+};
+const layers: number[] = Object.values(Layer).filter(v => typeof v === 'number') as any;
+
 const wall2 = new GameObject();
 const wall3 = new GameObject();
 const wall4 = new GameObject();
@@ -19,7 +24,6 @@ const wall5 = new GameObject();
 const wall6 = new GameObject();
 const wall7 = new GameObject();
 
-player.transform = new Rectangle(200, 200, 50, 50);
 wall2.transform = new Rectangle(100, 400, 500, 50);
 wall3.transform = new Rectangle(50, 300, 50, 150);
 wall4.transform = new Rectangle(600, 300, 50, 150);
@@ -27,7 +31,6 @@ wall5.transform = new Rectangle(50, 100, 600, 50);
 wall6.transform = new Rectangle(150, 200, 50, 150);
 wall7.transform = new Rectangle(650, 100, 50, 150);
 
-player.solid = true;
 wall2.solid = true;
 wall3.solid = true;
 wall4.solid = true;
@@ -35,27 +38,35 @@ wall5.solid = true;
 wall6.solid = true;
 wall7.solid = true;
 
-player.collisionLayers = [0];
-wall2.collisionLayers = [0];
-wall3.collisionLayers = [0];
-wall4.collisionLayers = [0];
-wall5.collisionLayers = [0];
-wall6.collisionLayers = [0];
-wall7.collisionLayers = [0];
-
-player.gravity = true;
+wall2.collisionLayer = Layer.WALLS;
+wall3.collisionLayer = Layer.WALLS;
+wall4.collisionLayer = Layer.WALLS;
+wall5.collisionLayer = Layer.WALLS;
+wall6.collisionLayer = Layer.WALLS;
+wall7.collisionLayer = Layer.WALLS;
 
 const game = new Game([
-    player,
     wall2,
     wall3,
     wall4,
     wall5,
     wall6,
     wall7,
-]);
+], layers);
 
-const lag = 25;
+game.setCollisionPair(Layer.WALLS, Layer.PLAYERS, true);
+
+const createPlayer = () => {
+    const player = new GameObject();
+    player.transform = new Rectangle(200, 200, 50, 50);
+    player.solid = true;
+    player.collisionLayer = Layer.PLAYERS;
+    game.gameObjects.push(player);
+    game.initPlayers([ player.id ]);
+    players.push(player);
+};
+
+const lag = 0;
 
 const lagSimulator = (callback: () => void, multiplier = 1) => {
     if (lag) {
@@ -65,10 +76,11 @@ const lagSimulator = (callback: () => void, multiplier = 1) => {
     }
 }
 
-const createGameState = (timestamp?: number) => {
+const createGameState = (connectionId: number, timestamp?: number) => {
     const gameState: GameState = {
-        cameraOn: player.id,
+        cameraOn: players[connectionId]?.id || new Vector(),
         gameObjects: game.gameObjects,
+        collisionMatrix: game.collisionMatrix,
         timestamp: timestamp || Date.now()
     };
     return gameState;
@@ -76,10 +88,11 @@ const createGameState = (timestamp?: number) => {
 
 const mainThread = interval(Game.baseTickRate);
 const eventStreams: Record<string, any>[] = [];
+const players: GameObject[] = [];
 
 const broadcast = () => {
-    const gameState = createGameState();
     eventStreams.forEach((eventStream, i) => {
+        const gameState = createGameState(i);
         lagSimulator(() => {
             eventStream.write(`data: ${JSON.stringify(gameState)}\n\n`);
         });
@@ -110,14 +123,16 @@ app.get('/streaming', (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders(); // flush the headers to establish SSE with client
 
-    game.initPlayers([ player.id ]);
-
     eventStreams.push(res);
+    createPlayer();
 
     // If client closes connection, stop sending events
     res.on('close', () => {
         console.log('client dropped me');
-        eventStreams.splice(eventStreams.indexOf(res), 1);
+        const connectionId = eventStreams.indexOf(res);
+        eventStreams.splice(connectionId, 1);
+        const player = players.splice(connectionId, 1)[0];
+        game.gameObjects.splice(game.gameObjects.indexOf(player), 1);
         res.end();
     });
 });

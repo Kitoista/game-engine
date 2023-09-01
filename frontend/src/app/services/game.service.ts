@@ -62,16 +62,16 @@ export class GameService {
     onNewGameState(gameState: GameState) {
         this.lastGameState = gameState;
         if (!this.game) {
-            this.game = new Game([]);
+            this.game = new Game([], this.lastGameState.collisionMatrix);
         }
         if (this.player) {
             // console.log('Message');
             // console.log(this.player.transform.position);
         }
         this.game.gameObjects = this.lastGameState!.gameObjects.map(go => GameObject.from(go));
-        if (this.player) {
-            // console.log(this.player!.transform.position);
-        }
+        // if (this.player) {
+        //     console.log(this.player!.transform.position);
+        // }
         if (typeof this.lastGameState!.cameraOn === 'number') {
             this.player = this.game.gameObjects.find(obj => this.lastGameState!.cameraOn === obj.id);
             if (this.player) {

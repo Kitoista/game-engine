@@ -1,5 +1,11 @@
 import { Rectangle, Vector } from "./engine";
 
+export interface CollisionMatrix {
+    [layerA: number]: {
+        [layerB: number]: boolean
+    }
+}
+
 export class GameObject {
     /** This only has an effect on the server */
     static _nextId = 0;
@@ -10,7 +16,7 @@ export class GameObject {
     transform = new Rectangle(0, 0, 30, 50);
     velocity = new Vector(0, 0);
     displayedLayer: number = 0;
-    collisionLayers: number[] = [];
+    collisionLayer: number = -1;
 
     gravity = false;
     solid = false;
@@ -43,6 +49,7 @@ export interface GameState {
     gameObjects: GameObject[];
     /** gameObject id or Vector */
     cameraOn: number | Vector;
+    collisionMatrix: CollisionMatrix;
     timestamp: number;
 }
 
@@ -55,15 +62,33 @@ export class Game {
         return this.gameObjects.filter(g => g.solid);
     }
     playerInputMap: { [id: number]: PlayerInputEvent[] } = {};
+    collisionMatrix: CollisionMatrix;
 
-    constructor(gameObjects: GameObject[]);
-    constructor(gameObjectsJson: string);
-    constructor(arg: string | GameObject[]) {
-        if (typeof arg === 'object') {
-            this.gameObjects = arg;
+    constructor(arg0: string | GameObject[], arg1: CollisionMatrix | number[]) {
+        if (typeof arg0 === 'object') {
+            this.gameObjects = arg0;
         } else {
-            this.gameObjects = JSON.parse(arg).map((gameObjectJson: any) => GameObject.from(gameObjectJson));
+            this.gameObjects = JSON.parse(arg0).map((gameObjectJson: any) => GameObject.from(gameObjectJson));
         }
+        if (Array.isArray(arg1)) {
+            this.collisionMatrix = {};
+            arg1.sort();
+            arg1.forEach((layerA, i) => {
+                this.collisionMatrix[layerA] = {};
+                for (let j = i; j < arg1.length; ++j) {
+                    const layerB = arg1[j];
+                    this.collisionMatrix[layerA][layerB] = false;
+                }
+            });
+        } else {
+            this.collisionMatrix = arg1;
+        }
+    }
+
+    setCollisionPair(layerA: number, layerB: number, value: boolean) {
+        const a = layerA < layerB ? layerA : layerB;
+        const b = layerA < layerB ? layerB : layerA;
+        this.collisionMatrix[layerA][layerB] = value;
     }
 
     initPlayers(ids: number[]) {
@@ -87,9 +112,11 @@ export class Game {
                     }
                 }
             }
-            const playerObject = this.gameObjects.find(go => go.id == id)!;
+            const playerObject = this.gameObjects.find(go => go.id == id);
             inputs.forEach(event => {
-                this.handlePlayerInputEvent(playerObject, event);
+                if (playerObject) {
+                    this.handlePlayerInputEvent(playerObject, event);
+                }
             });
         });
     }
@@ -108,6 +135,9 @@ export class Game {
     tick() {
         this.handlePlayerInputEvents();
         this.gameObjects.forEach(gameObject => {
+            // if (gameObject.gravity) {
+            //     gameObject.velocity.y += 5;
+            // }
             if ((gameObject.velocity.x === 0 && gameObject.velocity.y === 0)) {
                 return;
             }
@@ -133,23 +163,38 @@ export class Game {
             }
             gameObject.transform = newTransform;
 
-            gameObject.velocity = new Vector();
+            // gameObject.velocity = new Vector();
 
-            // gameObject.velocity.x -= Math.sign(gameObject.velocity.x) * Math.min(1, Math.abs(gameObject.velocity.x)) / Game.smoothness;
-            // gameObject.velocity.y -= Math.sign(gameObject.velocity.y) * Math.min(1, Math.abs(gameObject.velocity.y)) / Game.smoothness;
+            gameObject.velocity.x -= Math.sign(gameObject.velocity.x) * Math.min(1, Math.abs(gameObject.velocity.x)) / Game.smoothness;
+            gameObject.velocity.y -= Math.sign(gameObject.velocity.y) * Math.min(1, Math.abs(gameObject.velocity.y)) / Game.smoothness;
             
-            // if (Math.abs(gameObject.velocity.x) < 0.1) {
-            //     gameObject.velocity.x = 0;
-            // }
-            // if (Math.abs(gameObject.velocity.y) < 0.1) {
-            //     gameObject.velocity.y = 0;
-            // }
+            if (Math.abs(gameObject.velocity.x) < 0.1) {
+                gameObject.velocity.x = 0;
+            }
+            if (Math.abs(gameObject.velocity.y) < 0.1) {
+                gameObject.velocity.y = 0;
+            }
         });
     }
 
-    canCollideWith(obj: GameObject) {
+    areLayersColliding(layerA: number, layerB: number): boolean {
+        if (layerA === -1 || layerB === -1) {
+            return false;
+        }
+        const a = layerA < layerB ? layerA : layerB;
+        const b = layerA < layerB ? layerB : layerA;
+        return this.collisionMatrix?.[a]?.[b];
+    }
+
+    canCollideWith(obj: GameObject): GameObject[] {
+        if (!obj.solid) {
+            return [];
+        }
         return this.gameObjects.filter(g => {
-            return g.solid && g.id !== obj.id && obj.collisionLayers.findIndex(layer => g.collisionLayers.includes(layer)) !== -1;
+            if (!(g.solid && g.id !== obj.id)) {
+                return false;
+            }
+            return this.areLayersColliding(obj.collisionLayer, g.collisionLayer);
         });
     }
 
