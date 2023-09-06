@@ -1,4 +1,9 @@
-import { Rectangle, Vector } from "./engine";
+import { Vector } from "./engine";
+import { GameObject } from "./game-object";
+import { Serializable, Serializer } from "./serialize";
+import * as components from './components';
+
+components;
 
 export interface CollisionMatrix {
     [layerA: number]: {
@@ -6,82 +11,64 @@ export interface CollisionMatrix {
     }
 }
 
-export class GameObject {
-    /** This only has an effect on the server */
-    static _nextId = 0;
-
-    static gameObjects: GameObject[] = [];
-    id!: number;
-
-    transform = new Rectangle(0, 0, 30, 50);
-    velocity = new Vector(0, 0);
-    displayedLayer: number = 0;
-    collisionLayer: number = -1;
-
-    gravity = false;
-    solid = false;
-
-    /** without id it's on server */
-    public constructor();
-    /** with id it's on client */
-    public constructor(id: number);
-    public constructor(id?: number) {
-        if (id) {
-            this.id = id;
-        } else {
-            this.id = ++GameObject._nextId;
-        }
-        GameObject.gameObjects.push(this);
-    }
-
-    public static from(value: any) {
-        let gameObject = GameObject.gameObjects.find(go => go.id === value.id);
-        if (!gameObject) {
-            gameObject = new GameObject();
-        }
-        Object.keys(value).forEach(key => (gameObject as any)[key] = value[key]);
-        gameObject.transform = new Rectangle(value.transform);
-        return gameObject;
-    }
-}
-
 export interface GameState {
+    timestamp: number;
     gameObjects: GameObject[];
+    collisionMatrix: CollisionMatrix;
     /** gameObject id or Vector */
     cameraOn: number | Vector;
-    collisionMatrix: CollisionMatrix;
-    timestamp: number;
+}
+
+export interface GameMessage extends Serializable {
+    state: GameState;
 }
 
 export class Game {
+    static isServer = true;
+
     static baseTickRate = 10;
     static refreshRate = 30;
     static smoothness = 1;
-    public gameObjects: GameObject[] = [];
-    get solidObjects(): GameObject[] {
-        return this.gameObjects.filter(g => g.solid);
-    }
-    playerInputMap: { [id: number]: PlayerInputEvent[] } = {};
-    collisionMatrix: CollisionMatrix;
+    static time = 0;
 
-    constructor(arg0: string | GameObject[], arg1: CollisionMatrix | number[]) {
-        if (typeof arg0 === 'object') {
-            this.gameObjects = arg0;
-        } else {
-            this.gameObjects = JSON.parse(arg0).map((gameObjectJson: any) => GameObject.from(gameObjectJson));
-        }
-        if (Array.isArray(arg1)) {
-            this.collisionMatrix = {};
-            arg1.sort();
-            arg1.forEach((layerA, i) => {
+    static instance: Game;
+
+    public gameObjects: GameObject[] = [];
+    public newGameObjects: GameObject[] = [];
+    
+    /** only exists on client */
+    playerObject: GameObject | null = null;
+
+    collisionMatrix: CollisionMatrix;
+    gravity = 5;
+
+    constructor(layers?: number[]) {
+        Game.instance = this;
+        this.collisionMatrix = {};
+        if (layers) {
+            layers.sort();
+            layers.forEach((layerA, i) => {
                 this.collisionMatrix[layerA] = {};
-                for (let j = i; j < arg1.length; ++j) {
-                    const layerB = arg1[j];
+                for (let j = i; j < layers.length; ++j) {
+                    const layerB = layers[j];
                     this.collisionMatrix[layerA][layerB] = false;
                 }
             });
-        } else {
-            this.collisionMatrix = arg1;
+        }
+    }
+
+    applyState(stateJson: GameState) {
+        const state: GameState = Serializer.deserialize(stateJson);
+        Game.time = state.timestamp;
+
+        Object.entries(state).forEach(([key, value]) => {
+            if (value) {
+                (this as any)[key] = value;
+            }
+        });
+
+        if (!Game.isServer && typeof state.cameraOn === 'number') {
+            this.playerObject = GameObject.getById(state.cameraOn);
         }
     }
 
@@ -91,90 +78,10 @@ export class Game {
         this.collisionMatrix[layerA][layerB] = value;
     }
 
-    initPlayers(ids: number[]) {
-        ids.forEach(id => this.playerInputMap[id] = this.playerInputMap[id] ?? []);
-    }
-
-    handlePlayerInputEvents() {
-        Object.keys(this.playerInputMap).forEach((id: any) => {
-            const inputs: PlayerInputEvent[] = [];
-            for (let i = 0; i < this.playerInputMap[id].length; ++i) {
-                const event = this.playerInputMap[id][i];
-                const existingOnEventIndex = inputs.findIndex(e => event.eventName === e.eventName && e.status);
-
-                if (event.status) {
-                    if (existingOnEventIndex === -1) {
-                        inputs.push(event);
-                    }
-                } else {
-                    if (existingOnEventIndex > -1) {
-                        inputs.splice(existingOnEventIndex, 1)
-                    }
-                }
-            }
-            const playerObject = this.gameObjects.find(go => go.id == id);
-            inputs.forEach(event => {
-                if (playerObject) {
-                    this.handlePlayerInputEvent(playerObject, event);
-                }
-            });
-        });
-    }
-
-    handlePlayerInputEvent(go: GameObject, event: PlayerInputEvent) {
-        if (!event.status) console.log(event);
-        
-        switch (event.eventName) {
-            case 'left': go.velocity.x = Math.max(-5 / Game.smoothness, go.velocity.x - 5 / Game.smoothness); break;
-            case 'right': go.velocity.x = Math.min(5 / Game.smoothness, go.velocity.x + 5 / Game.smoothness); break;
-            case 'up': go.velocity.y = Math.max(-5 / Game.smoothness, go.velocity.y - 5 / Game.smoothness); break;
-            case 'down': go.velocity.y = Math.min(5 / Game.smoothness, go.velocity.y + 5 / Game.smoothness); break;
-        }
-    }
-
     tick() {
-        this.handlePlayerInputEvents();
-        this.gameObjects.forEach(gameObject => {
-            // if (gameObject.gravity) {
-            //     gameObject.velocity.y += 5;
-            // }
-            if ((gameObject.velocity.x === 0 && gameObject.velocity.y === 0)) {
-                return;
-            }
-            const others = this.canCollideWith(gameObject);
-            const newTransform = new Rectangle(gameObject.transform);
-            const velocity = Vector.scale(gameObject.velocity, 1);
-            for (let i = 0; i < Math.abs(velocity.x); ++i) {
-                newTransform.position.x += Math.sign(velocity.x);
-                if (!this.canMoveThere(others, newTransform)) {
-                    newTransform.position.x -= Math.sign(velocity.x);
-                    velocity.x = 0;
-                    break;
-                }
-            }
-            for (let j = 0; j < Math.abs(velocity.y); ++j) {
-                const pre = new Vector(newTransform.position);
-                newTransform.position.y += Math.sign(velocity.y);
-                if (!this.canMoveThere(others, newTransform)) {
-                    newTransform.position.y -= Math.sign(velocity.y);
-                    velocity.y = 0;
-                    break;
-                }
-            }
-            gameObject.transform = newTransform;
-
-            // gameObject.velocity = new Vector();
-
-            gameObject.velocity.x -= Math.sign(gameObject.velocity.x) * Math.min(1, Math.abs(gameObject.velocity.x)) / Game.smoothness;
-            gameObject.velocity.y -= Math.sign(gameObject.velocity.y) * Math.min(1, Math.abs(gameObject.velocity.y)) / Game.smoothness;
-            
-            if (Math.abs(gameObject.velocity.x) < 0.1) {
-                gameObject.velocity.x = 0;
-            }
-            if (Math.abs(gameObject.velocity.y) < 0.1) {
-                gameObject.velocity.y = 0;
-            }
-        });
+        this.newGameObjects.forEach(go => go.start());
+        this.newGameObjects = [];
+        this.gameObjects.forEach(go => go.update());
     }
 
     areLayersColliding(layerA: number, layerB: number): boolean {
@@ -186,38 +93,8 @@ export class Game {
         return this.collisionMatrix?.[a]?.[b];
     }
 
-    canCollideWith(obj: GameObject): GameObject[] {
-        if (!obj.solid) {
-            return [];
-        }
-        return this.gameObjects.filter(g => {
-            if (!(g.solid && g.id !== obj.id)) {
-                return false;
-            }
-            return this.areLayersColliding(obj.collisionLayer, g.collisionLayer);
-        });
-    }
-
-    canMoveThere(others: GameObject[], newTransform: Rectangle): boolean {
-        let re = true;
-        others.forEach(other => {
-            if (other.transform.intersects(newTransform)) {
-                re = false;
-                return;
-            }
-        });
-        return re;
-    }
-}
-
-export const playerInputEventTypes = [
-    'left', 'right', 'up', 'down'
-] as const;
-export type PlayerInputEventType = typeof playerInputEventTypes[number];
-
-export class PlayerInputEvent {
-    type = 'PlayerInputEvent';
-    
-    public constructor(public eventName: PlayerInputEventType, public status: boolean, public objectId: number) {
+    addGameObject(go: GameObject): void {
+        this.gameObjects.push(go);
+        this.newGameObjects.push(go);
     }
 }

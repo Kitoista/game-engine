@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "copy .\\src\\* ..\\backend\\common && copy .\\src\\* ..\\frontend\\src\\common",
+    "build": "xcopy /y /s .\\src\\* ..\\backend\\common && xcopy /y /s .\\src\\* ..\\frontend\\src\\common",
     "dev": "watch \"npm run build\" ./src --interval=1",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
@@ -16,6 +16,7 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
+    "rxjs": "^7.8.1",
     "watch": "^1.0.2"
   }
 }

@@ -1,6 +1,6 @@
 <canvas #canvas width="640px" height="480px"></canvas>
 <div>
-    Ping: {{ gameService.ping$ | async }}
+    Ping: {{ communicator.ping$ | async }}
 </div>
 <div>
     Tick rate: {{ Game.baseTickRate }}
@@ -9,5 +9,18 @@
     Server update rate: {{ Game.refreshRate }}
 </div>
 <div>
-    <button (click)="gameService.isPredictAllowed = !gameService.isPredictAllowed">Predicition {{ gameService.isPredictAllowed ? 'ON' : 'OFF' }}</button>
+    <button (click)="gameService.isPredictAllowed = !gameService.isPredictAllowed">
+        Predicition {{ gameService.isPredictAllowed ? 'ON' : 'OFF' }}
+    </button>
+</div>
+
+<div>
+    <button (click)="gameService.areLinesAllowed = !gameService.areLinesAllowed">
+        Lines {{ gameService.areLinesAllowed ? 'ON' : 'OFF' }}
+    </button>
+</div>
+<div>
+    <button (click)="gameService.isCursorDetailsShown = !gameService.isCursorDetailsShown">
+        Cursor details {{ gameService.isCursorDetailsShown ? 'ON' : 'OFF' }}
+    </button>
 </div>
