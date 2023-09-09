@@ -2,7 +2,7 @@ import { Component } from "../component";
 import { Vector } from "../engine";
 import { Serializer } from "../serialize";
 import { Collider, Collision } from "./collider";
-import { Player } from "./player";
+import { Mob } from "./mob";
 import { Rigidbody } from "./rigidbody";
 
 export enum DoorState {
@@ -21,7 +21,7 @@ export class Door extends Component {
 
     rigidbody!: Rigidbody;
 
-    playersNear: Player[] = [];
+    mobsNear: Mob[] = [];
 
     start() {
         this.rigidbody = this.getComponent(Rigidbody);
@@ -31,7 +31,7 @@ export class Door extends Component {
     }
 
     update() {        
-        if (this.playersNear.length > 0) {
+        if (this.mobsNear.length > 0) {
             if (this.currentState === DoorState.closed) {
                 this.currentState = DoorState.opening;
             }
@@ -53,7 +53,7 @@ export class Door extends Component {
             
             this.rigidbody.velocity = vector;
         }
-        this.playersNear = [];
+        this.mobsNear = [];
     }
 
     toggle() {
@@ -66,19 +66,19 @@ export class Door extends Component {
 
     onTrigger(collision: Collision) {
         if (!collision.otherCollider.isTrigger) {
-            const player = collision.otherCollider.gameObject.getComponent(Player);
-            if (player && !this.playersNear.includes(player)) {
-                this.playersNear.push(player);
+            const mob = collision.otherCollider.gameObject.getComponent(Mob);
+            if (mob && !this.mobsNear.includes(mob)) {
+                this.mobsNear.push(mob);
             }
         }
     }
 
     onTriggerLeave(collision: Collision) {
         if (!collision.otherCollider.isTrigger) {
-            const player = collision.otherCollider.gameObject.getComponent(Player);
-            if (player && this.playersNear.includes(player)) {
-                this.playersNear.splice(this.playersNear.indexOf(player), 1);
-                if (this.playersNear.length === 0 && this.currentState === DoorState.open) {
+            const mob = collision.otherCollider.gameObject.getComponent(Mob);
+            if (mob && this.mobsNear.includes(mob)) {
+                this.mobsNear.splice(this.mobsNear.indexOf(mob), 1);
+                if (this.mobsNear.length === 0 && this.currentState === DoorState.open) {
                     this.currentState = DoorState.closing;
                 }
             }

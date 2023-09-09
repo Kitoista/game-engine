@@ -65,6 +65,7 @@ export class GameService {
     }
 
     start(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D) {
+        this.communicator.startPinging();
         const source = new EventSource('http://localhost:8000/streaming');
         this.canvas = canvas;
         this.context = context;
@@ -141,7 +142,7 @@ export class GameService {
         }
 
         this.sortSpriteRenderers().forEach(sp => {
-            this.drawSpriteRenderer(sp);
+            this.renderSprite(sp);
         });
 
         if (this.isCursorDetailsShown) {
@@ -204,23 +205,40 @@ export class GameService {
         this.context.closePath();
     }
 
-    drawImage(imageName: string, bounds: Rectangle, alt: string = '') {
+    drawImage(imageName: string, bounds: Rectangle, alt: string = '', flipX = false, flipY = false) {
         const image = this.imageLoaderService.loadedImages[imageName];
         if (image) {
-            this.context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height);
+            // this.context.drawImage(image, bounds.x, bounds.y, bounds.width, bounds.height);
+            this.context.save();  // save the current canvas state
+            this.context.setTransform(
+                flipX ? -1 : 1, 0, // set the direction of x axis
+                0, flipY ? -1 : 1,   // set the direction of y axis
+                bounds.x + (flipX ? bounds.width : 0), // set the x origin
+                bounds.y + (flipY ? bounds.height : 0)   // set the y origin
+            );
+            this.context.drawImage(image, 0, 0, bounds.width, bounds.height);
+            this.context.restore(); // restore the state as it was when this function was called
         } else {
             this.drawRectangle(bounds, alt ?? imageName, 'red');
         }
     }
 
-    drawSpriteRenderer(spriteRenderer: SpriteRenderer) {
-        const bounds = this.cameraShiftRectangle(Rectangle.offset(spriteRenderer.bounds, spriteRenderer.transform.position));
+    renderSprite(spriteRenderer: SpriteRenderer) {
+        const bounds = this.cameraShiftRectangle(spriteRenderer.worldBounds);
+        const collider = spriteRenderer.getComponent(Collider);
+        const visionBounds = collider ? this.cameraShiftRectangle(collider.worldBounds) : bounds;
         const isAffectedByVision = this.areLinesAllowed && spriteRenderer.affectedByVision && this.playerObject && spriteRenderer.gameObject !== this.playerObject;
-        if (isAffectedByVision) {
-            this.clipVision();
+        const isAffectedByVisionRange = this.areLinesAllowed && spriteRenderer.affectedByVisionRange && this.playerObject && spriteRenderer.gameObject !== this.playerObject;
+        if (isAffectedByVisionRange) {
+            this.context.save();
+            const playerWorldCenter = this.cameraShiftVector(this.playerCenter);
+            this.context.arc(playerWorldCenter.x, playerWorldCenter.y, this.player!.visionRange, 0, 2 * Math.PI, false);
+            this.context.clip();
         }
-        this.drawImage(spriteRenderer.sprite?.name || '', bounds, spriteRenderer.gameObject.id + '');
-        if (isAffectedByVision) {
+        if (!isAffectedByVision || this.clipVision(visionBounds)) {
+            this.drawImage(spriteRenderer.sprite?.name || '', bounds, spriteRenderer.gameObject.id + '', spriteRenderer.flipX, spriteRenderer.flipY);
+        }
+        if (isAffectedByVisionRange) {
             this.context.restore();
         }
     }
@@ -269,7 +287,7 @@ export class GameService {
         const renderedRect = this.cameraShiftRectangle(go.transform);
         const spriteRenderer = go.getComponent(SpriteRenderer);
         if (spriteRenderer) {
-            this.drawSpriteRenderer(spriteRenderer);
+            this.renderSprite(spriteRenderer);
         } else {
             this.drawRectangle(renderedRect, go.id + '');
         }
@@ -305,9 +323,13 @@ export class GameService {
     //     }
     // }
 
-    clipVision() {
-        this.context.save();
-        this.context.clip(this.vision);
+    clipVision(bounds: Rectangle): boolean {
+        // this.context.save();
+        return this.context.isPointInPath(this.vision, bounds.topLeft.x, bounds.topLeft.y, 'evenodd') ||
+            this.context.isPointInPath(this.vision, bounds.topRight.x, bounds.topRight.y, 'evenodd') ||
+            this.context.isPointInPath(this.vision, bounds.bottomLeft.x, bounds.bottomLeft.y, 'evenodd') ||
+            this.context.isPointInPath(this.vision, bounds.bottomRight.x, bounds.bottomRight.y, 'evenodd');
+        // this.context.clip(this.vision);
     }
 
     renderVision() {
@@ -335,7 +357,7 @@ export class GameService {
         const visionPoints: Vector[] = [];
 
         const angles: number[] = [];
-        for (let angle = 0 + stepSize / 2; angle < 360 + stepSize / 2; angle += stepSize) {
+        for (let angle = 0; angle < 360 + stepSize / 2; angle += stepSize) {
             angles.push(angle);
         }
 

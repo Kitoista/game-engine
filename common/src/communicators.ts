@@ -1,14 +1,14 @@
 import { interval, timer, ReplaySubject, BehaviorSubject, Observable, take, switchMap } from "rxjs";
 
-export const playerInputEventTypes = [
+export const mobInputEventTypes = [
     'left', 'right', 'up', 'down'
 ] as const;
-export type PlayerInputEventType = typeof playerInputEventTypes[number];
+export type MobInputEventType = typeof mobInputEventTypes[number];
 
-export class PlayerInputEvent { 
-    type = 'PlayerInputEvent';
+export class MobInputEvent { 
+    type = 'MobInputEvent';
 
-    public constructor(public eventName: PlayerInputEventType, public status: boolean, public objectId: number) {
+    public constructor(public eventName: MobInputEventType, public status: boolean, public objectId: number) {
     }
 }
 
@@ -71,8 +71,8 @@ export class ClientCommunicator {
         return subject.asObservable();
     }
 
-    sendPlayerInputEvent(event: PlayerInputEvent): Observable<Response<void>> {
-        return this.post('player-input-event', event);
+    sendMobInputEvent(event: MobInputEvent): Observable<Response<void>> {
+        return this.post('mob-input-event', event);
     }
 
 }

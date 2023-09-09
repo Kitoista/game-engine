@@ -8,9 +8,10 @@ import { playerPrefab } from './common/prefabs/player.prefab';
 import { Serializer } from './common/serialize';
 import { wallPrefab } from './common/prefabs/wall.prefab';
 import { sprites } from './sprites';
-import { Player } from './common/components';
-import { PlayerInputEvent } from './common/communicators';
+import { Animator, Player } from './common/components';
+import { MobInputEvent } from './common/communicators';
 import { doorPrefab } from './common/prefabs/door.prefab';
+import { aiPrefab } from './common/prefabs/ai.prefab';
 
 const cors = require('cors');
 
@@ -61,6 +62,23 @@ const createPlayer = () => {
     const player = playerPrefab();
     game.addGameObject(player);
     players.push(player);
+    if (players.length % 2 === 0) {
+        player.getComponent(Animator).animationMap = {
+            'idle': [
+                { sprite: { name: 'Skitty_idle_1' }, duration: 500 },
+                { sprite: { name: 'Skitty_idle_2' }, duration: 250 },
+            ],
+            'moving': [
+                { sprite: { name: 'Skitty_moving_1' }, duration: 100 },
+                { sprite: { name: 'Skitty_moving_2' }, duration: 75 },
+                { sprite: { name: 'Skitty_moving_2' }, duration: 25 },
+                { sprite: { name: 'Skitty_moving_4' }, duration: 100 },
+            ]
+        }
+    }
+    const ai = aiPrefab(player);
+    game.addGameObject(ai);
+    ais.push(ai);
 };
 
 const sendSprites = (eventStream: any) => {
@@ -93,6 +111,7 @@ const createGameMessage = (connectionId: number, timestamp?: number): GameMessag
 const mainThread = interval(Game.baseTickRate);
 const eventStreams: Record<string, any>[] = [];
 const players: GameObject[] = [];
+const ais: GameObject[] = [];
 
 const broadcast = () => {
     eventStreams.forEach((eventStream, i) => {
@@ -139,16 +158,18 @@ app.get('/streaming', (req, res) => {
         eventStreams.splice(connectionId, 1);
         const player = players.splice(connectionId, 1)[0];
         game.gameObjects.splice(game.gameObjects.indexOf(player), 1);
+        const ai = ais.splice(connectionId, 1)[0];
+        game.gameObjects.splice(game.gameObjects.indexOf(ai), 1);
         res.end();
     });
 });
 
-app.post('/player-input-event', (req, res) => {
+app.post('/mob-input-event', (req, res) => {
     lagSimulator(() => {
-        const event: PlayerInputEvent = req.body;
+        const event: MobInputEvent = req.body;
         const player = GameObject.getById(event.objectId)?.getComponent(Player);
         if (player) {
-            player.playerInputEvents.push(event);
+            player.mobInputEvents.push(event);
         }
     });
 

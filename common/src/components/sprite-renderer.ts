@@ -6,6 +6,7 @@ import { Serializer } from "../serialize";
 export interface Sprite {
     name: string;
     src?: string;
+    pivot?: Vector;
 }
 
 export class SpriteRenderer extends Component {
@@ -14,9 +15,13 @@ export class SpriteRenderer extends Component {
     sprite: Sprite | null = null;
     bounds: Rectangle;
 
+    flipX = false;
+    flipY = false;
+
     zIndex = 0;
     zIndexUpdate = false;
     affectedByVision = false;
+    affectedByVisionRange = false;
 
     get worldBounds() {
         return Rectangle.offset(this.bounds, this.transform.position);
