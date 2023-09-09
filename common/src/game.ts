@@ -36,6 +36,9 @@ export class Game {
     public gameObjects: GameObject[] = [];
     public newGameObjects: GameObject[] = [];
     
+    static beforeUpdateFuncitons: (() => void)[] = [];
+    static afterUpdateFuncitons: (() => void)[] = [];
+
     /** only exists on client */
     playerObject: GameObject | null = null;
 
@@ -61,6 +64,12 @@ export class Game {
         const state: GameState = Serializer.deserialize(stateJson);
         Game.time = state.timestamp;
 
+        state.gameObjects.forEach(go => {
+            if (!this.gameObjects.includes(go)) {
+                this.newGameObjects.push(go);
+            }
+        });
+
         Object.entries(state).forEach(([key, value]) => {
             if (value) {
                 (this as any)[key] = value;
@@ -75,13 +84,15 @@ export class Game {
     setCollisionPair(layerA: number, layerB: number, value: boolean) {
         const a = layerA < layerB ? layerA : layerB;
         const b = layerA < layerB ? layerB : layerA;
-        this.collisionMatrix[layerA][layerB] = value;
+        this.collisionMatrix[a][b] = value;
     }
 
     tick() {
         this.newGameObjects.forEach(go => go.start());
         this.newGameObjects = [];
+        Object.values(components).forEach((component: any) => component.beforeUpdate ? component.beforeUpdate() : null);
         this.gameObjects.forEach(go => go.update());
+        Object.values(components).forEach((component: any) => component.beforeUpdate ? component.afterUpdate() : null);
     }
 
     areLayersColliding(layerA: number, layerB: number): boolean {

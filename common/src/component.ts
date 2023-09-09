@@ -33,6 +33,14 @@ export abstract class Component implements Serializable  {
     update() {
     }
 
+    getComponent<T extends Component>(constr: new (...agrs: any[]) => T): T {
+        return this.gameObject.getComponent(constr);
+    }
+
+    getComponents<T extends Component>(constr: new (...agrs: any[]) => T): T[] {
+        return this.gameObject.getComponents(constr);
+    }
+
     serialize(): any {
         const re: any = {};
         Object.entries(this).forEach(([key, value]) => {
@@ -63,4 +71,7 @@ export abstract class Component implements Serializable  {
             return component;
         }
     }
+
+    static beforeUpdate() {}
+    static afterUpdate() {}
 }

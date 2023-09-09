@@ -4,12 +4,13 @@ import { interval } from 'rxjs';
 import { Game, GameMessage } from './common/game';
 import { Rectangle, Vector } from './common/engine';
 import { GameObject } from './common/game-object';
-import { playerPrefab } from './common/prefabs/player';
+import { playerPrefab } from './common/prefabs/player.prefab';
 import { Serializer } from './common/serialize';
-import { wallPrefab } from './common/prefabs/wall';
+import { wallPrefab } from './common/prefabs/wall.prefab';
 import { sprites } from './sprites';
 import { Player } from './common/components';
 import { PlayerInputEvent } from './common/communicators';
+import { doorPrefab } from './common/prefabs/door.prefab';
 
 const cors = require('cors');
 
@@ -24,25 +25,30 @@ enum Layer {
 };
 const layers: number[] = Object.values(Layer).filter(v => typeof v === 'number') as any;
 
-const wall2 = wallPrefab(new Rectangle(100, 400, 500, 50));
-const wall3 = wallPrefab(new Rectangle(50, 300, 50, 150));
-const wall4 = wallPrefab(new Rectangle(600, 300, 50, 150));
-const wall5 = wallPrefab(new Rectangle(50, 100, 600, 50));
-const wall6 = wallPrefab(new Rectangle(150, 200, 50, 150));
-const wall7 = wallPrefab(new Rectangle(650, 100, 50, 150));
+const wall1 = wallPrefab(new Rectangle(100, 400, 500, 50));
+const wall2 = wallPrefab(new Rectangle(50, 300, 50, 150));
+const wall3 = wallPrefab(new Rectangle(600, 260, 50, 190));
+const wall4 = wallPrefab(new Rectangle(50, 100, 600, 50));
+const wall5 = wallPrefab(new Rectangle(150, 200, 50, 150));
+const wall6 = wallPrefab(new Rectangle(650, 100, 50, 150));
+
+const door = doorPrefab(new Rectangle(650, 250, 20, 50), new Vector(650, 300));
 
 const gameObjects: GameObject[] = [
+    wall1,
     wall2,
     wall3,
     wall4,
     wall5,
     wall6,
-    wall7,
+    door,
 ];
 
 const game = new Game(layers);
 
 game.setCollisionPair(Layer.WALLS, Layer.PLAYERS, true);
+
+gameObjects.forEach(go => game.addGameObject(go));
 
 game.applyState({
     cameraOn: new Vector(),
@@ -53,7 +59,7 @@ game.applyState({
 
 const createPlayer = () => {
     const player = playerPrefab();
-    game.gameObjects.push(player);
+    game.addGameObject(player);
     players.push(player);
 };
 

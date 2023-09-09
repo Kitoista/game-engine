@@ -18,11 +18,13 @@ export class Player extends Component {
     faceDirection = new Vector();
     playerInputEvents: PlayerInputEvent[] = [];
 
-    get rigidbody(): Rigidbody {
-        return this.gameObject.getComponent(Rigidbody);
-    }
+    speed = 5;
+    visionRange = 150;
 
-    override start() {
+    rigidbody!: Rigidbody;
+    
+    start() {
+        this.rigidbody = this.getComponent(Rigidbody);
     }
 
     override update() {
@@ -46,13 +48,12 @@ export class Player extends Component {
         });
     }
 
-
     handlePlayerInputEvent(event: PlayerInputEvent) {
         switch (event.eventName) {
-            case 'left': this.rigidbody.velocity.x = Math.max(-5 / Game.smoothness, this.rigidbody.velocity.x - 5 / Game.smoothness); break;
-            case 'right': this.rigidbody.velocity.x = Math.min(5 / Game.smoothness, this.rigidbody.velocity.x + 5 / Game.smoothness); break;
-            case 'up': this.rigidbody.velocity.y = Math.max(-5 / Game.smoothness, this.rigidbody.velocity.y - 5 / Game.smoothness); break;
-            case 'down': this.rigidbody.velocity.y = Math.min(5 / Game.smoothness, this.rigidbody.velocity.y + 5 / Game.smoothness); break;
+            case 'left': this.rigidbody.velocity.x = Math.max(-this.speed, this.rigidbody.velocity.x - this.speed); break;
+            case 'right': this.rigidbody.velocity.x = Math.min(this.speed, this.rigidbody.velocity.x + this.speed); break;
+            case 'up': this.rigidbody.velocity.y = Math.max(-this.speed, this.rigidbody.velocity.y - this.speed); break;
+            case 'down': this.rigidbody.velocity.y = Math.min(this.speed, this.rigidbody.velocity.y + this.speed); break;
         }
     }
 

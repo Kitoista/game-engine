@@ -11,62 +11,55 @@ export class Rigidbody extends Component {
     velocity = new Vector();
 
     override update() {
+        const gameObject = this.gameObject;
+        const colliders = gameObject.getComponents(Collider);
+        const others = Collider.canCollideWith(colliders[0]);
         if ((this.velocity.x === 0 && this.velocity.y === 0)) {
+            colliders.forEach(collider => {
+                const wouldCollideWith = Collider.wouldCollideWithTheseHere(collider, others, collider.transform);
+                wouldCollideWith.forEach(other => Collider.addCollision(collider, other));
+            });
             this.applyGravity();
             return;
         }
-        const gameObject = this.gameObject;
-        const collider = gameObject.getComponent(Collider);
-        const others = Collider.canCollideWith(collider);
-        const isSolid = collider && !collider.isTrigger;
 
         const newTransform = new Rectangle(this.transform);
         const velocity = Vector.scale(this.velocity, 1);
 
-        const collidedWith: Collider[] = [];
         let resetX = false;
         let resetY = false;
 
         for (let i = 0; i < Math.abs(velocity.x); ++i) {
             newTransform.position.x += Math.sign(velocity.x);
-            const wouldCollideWith = Collider.wouldCollideWithTheseHere(collider, others, newTransform);
-            wouldCollideWith.forEach(other => {
-                if (!collidedWith.includes(other)) {
-                    collidedWith.push(other);
+
+            colliders.forEach(collider => {
+                const wouldCollideWith = Collider.wouldCollideWithTheseHere(collider, others, newTransform);
+    
+                wouldCollideWith.forEach(other => Collider.addCollision(collider, other));
+                if (!collider.isTrigger && wouldCollideWith.some(other => !other.isTrigger)) {
+                    resetX = true;
                 }
             });
-            if (isSolid && wouldCollideWith.length > 0) {
+            if (resetX) {
                 newTransform.position.x -= Math.sign(velocity.x);
-                resetX = true;
-                break;
             }
         }
-        for (let j = 0; j < Math.abs(velocity.y); ++j) {
+        for (let i = 0; i < Math.abs(velocity.y); ++i) {
             newTransform.position.y += Math.sign(velocity.y);
-            const wouldCollideWith = Collider.wouldCollideWithTheseHere(collider, others, newTransform);
-            wouldCollideWith.forEach(other => {
-                if (!collidedWith.includes(other)) {
-                    collidedWith.push(other);
+
+            colliders.forEach(collider => {
+                const wouldCollideWith = Collider.wouldCollideWithTheseHere(collider, others, newTransform);
+
+                wouldCollideWith.forEach(other => Collider.addCollision(collider, other));
+                if (!collider.isTrigger && wouldCollideWith.some(other => !other.isTrigger)) {
+                    resetY = true;
                 }
             });
-            if (isSolid && wouldCollideWith.length > 0) {
+            if (resetY) {
                 newTransform.position.y -= Math.sign(velocity.y);
-                resetY = true;
-                break;
             }
         }
         gameObject.transform = newTransform;
-
-        if (collidedWith.length) {
-            const collisions: Collision[] = collidedWith.map(otherCollider => ({ collider, otherCollider }));
-            collisions.forEach(collision => {
-                if (isSolid) {
-                    gameObject.sendMessage('onCollision', collision);
-                } else {
-                    gameObject.sendMessage('onTrigger', collision);
-                }
-            });
-        }
 
         if (resetX) {
             velocity.x = 0;

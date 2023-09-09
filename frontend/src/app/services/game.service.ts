@@ -6,7 +6,7 @@ import { Game, GameMessage } from 'src/common/game';
 import { GameObject } from 'src/common/game-object';
 import { Serializer } from 'src/common/serialize';
 import { ImageLoaderService } from './image-loader.service';
-import { SpriteRenderer } from 'src/common/components';
+import { Collider, Player, SpriteRenderer } from 'src/common/components';
 import { ClientCommunicator } from 'src/common/communicators';
 import { BrowserEventHandler } from 'src/common/browser-event-handler';
 
@@ -28,6 +28,9 @@ export class GameService {
     get playerObject(): GameObject | null {
         return Game.instance.playerObject;
     };
+    get player(): Player | null {
+        return this.playerObject?.getComponent(Player) ?? null;
+    }
 
     lastGameMessage?: GameMessage;
 
@@ -35,6 +38,8 @@ export class GameService {
     context!: CanvasRenderingContext2D;
 
     mousePosition = new Vector();
+    playerCenter!: Vector;
+    vision: Path2D = new Path2D();
 
     cursorObject: Line[] = [
         new Line(-10, 0, -4, 0),
@@ -76,7 +81,7 @@ export class GameService {
         });
         
         this.camera = new Rectangle(0, 0, canvas.width, canvas.height);
-        
+
         source.onerror = val => {
             console.error(val)
             source.close();
@@ -117,7 +122,9 @@ export class GameService {
             this.game.tick();
         }
 
-        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.setPlayerCenter();
+
+        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);        
 
         this.context.beginPath();
         this.context.strokeStyle = 'black';
@@ -128,16 +135,13 @@ export class GameService {
         
         this.setCamera();
 
-        this.game.gameObjects.filter(go => go.collisionLayer !== 0).forEach(obj => {
-            this.renderObject(obj);
-        });
-        
         if (this.areLinesAllowed) {
-            this.renderLines();
+            this.calculateVision();
+            this.renderVision();
         }
 
-        this.game.gameObjects.filter(go => go.collisionLayer === 0).forEach(obj => {
-            this.renderObject(obj);
+        this.sortSpriteRenderers().forEach(sp => {
+            this.drawSpriteRenderer(sp);
         });
 
         if (this.isCursorDetailsShown) {
@@ -145,6 +149,31 @@ export class GameService {
         }
 
         this.cursor();
+    }
+
+    setPlayerCenter() {
+        if (this.playerObject) {
+            const collider = this.playerObject.getComponent(Collider);
+            if (collider) {
+                this.playerCenter = collider.worldBounds.middle;
+            } else {
+                this.playerCenter = this.playerObject.transform.middle;
+            }
+        } else {
+            this.playerCenter = this.camera.middle;
+        }
+    }
+
+    sortSpriteRenderers(): SpriteRenderer[] {
+        const spriteRenderers = this.game.gameObjects.map(go => go.getComponent(SpriteRenderer)).filter(sp => sp);
+        spriteRenderers.sort((a, b) => {
+            const zDiff = b.zIndex - a.zIndex;
+            if (zDiff !== 0) {
+                return zDiff;
+            }
+            return a.transform.bottomLeft.y - b.transform.bottomLeft.y;
+        });
+        return spriteRenderers;
     }
 
     cursor() {
@@ -166,8 +195,9 @@ export class GameService {
     drawRectangle(renderedRect: Rectangle, text = '', color = 'green') {
         this.context.beginPath();
         this.context.strokeStyle = color;
-        this.context.fillStyle = 'white';
+        this.context.fillStyle = '#281b0d';
         this.context.strokeRect(renderedRect.x, renderedRect.y, renderedRect.width, renderedRect.height);
+        this.context.fillRect(renderedRect.x, renderedRect.y, renderedRect.width, renderedRect.height);
         const textPosition = renderedRect.middle.add(new Vector(-2.5, 2.5));
         this.context.strokeText(text + '', textPosition.x, textPosition.y);
         this.context.stroke();
@@ -185,7 +215,14 @@ export class GameService {
 
     drawSpriteRenderer(spriteRenderer: SpriteRenderer) {
         const bounds = this.cameraShiftRectangle(Rectangle.offset(spriteRenderer.bounds, spriteRenderer.transform.position));
+        const isAffectedByVision = this.areLinesAllowed && spriteRenderer.affectedByVision && this.playerObject && spriteRenderer.gameObject !== this.playerObject;
+        if (isAffectedByVision) {
+            this.clipVision();
+        }
         this.drawImage(spriteRenderer.sprite?.name || '', bounds, spriteRenderer.gameObject.id + '');
+        if (isAffectedByVision) {
+            this.context.restore();
+        }
     }
 
     cursorDetails() {
@@ -224,6 +261,11 @@ export class GameService {
     }
 
     renderObject(go: GameObject) {
+        const colliders = go.getComponents(Collider);
+        colliders.forEach(collider => {
+            const renderedColliderRect = this.cameraShiftRectangle(collider.worldBounds);
+            this.drawRectangle(renderedColliderRect, go.id + '', collider.isTrigger ? 'blue' : 'red');
+        });
         const renderedRect = this.cameraShiftRectangle(go.transform);
         const spriteRenderer = go.getComponent(SpriteRenderer);
         if (spriteRenderer) {
@@ -263,15 +305,34 @@ export class GameService {
     //     }
     // }
 
-    renderLines() {
-        const playerObjectCenter = this.playerObject!.transform.middle;
-        const stepSize = 0.5;
-        const screenSize = new Vector(this.camera.dimension).magnitude / 2;
-        const visionRange = new Vector(this.camera.dimension).magnitude / 5;
-        
-        const walls = this.game.gameObjects.filter(go => go.id !== this.playerObject?.id && go.collisionLayer === 0);
+    clipVision() {
+        this.context.save();
+        this.context.clip(this.vision);
+    }
 
-        const grayLines: Line[] = [];
+    renderVision() {
+        const path = new Path2D();
+        path.rect(0, 0, this.canvas.width, this.canvas.height);
+        path.addPath(this.vision);
+        this.context.fillStyle = 'gray';
+        this.context.fill(path, 'evenodd');
+    }
+
+    calculateVision() {
+        const playerObjectCenter = this.playerCenter;
+        const stepSize = 0.5;
+        const screenSize = new Vector(this.camera.dimension).magnitude / 1.5;
+        const visionRange = this.playerObject?.getComponent(Player).visionRange!;
+        
+        const wallRectangles = this.game.gameObjects.filter(go => go.id !== this.playerObject?.id && go.collisionLayer === 0).map(go => {
+            const collider = go.getComponent(Collider);
+            if (collider) {
+                return collider.worldBounds;
+            }
+            return go.transform;
+        });
+
+        const visionPoints: Vector[] = [];
 
         const angles: number[] = [];
         for (let angle = 0 + stepSize / 2; angle < 360 + stepSize / 2; angle += stepSize) {
@@ -293,33 +354,28 @@ export class GameService {
             const vector = new Vector(Math.cos(angleRad), Math.sin(angleRad));
             const line = new Line(playerObjectCenter, Vector.add(playerObjectCenter, Vector.scale(vector, screenSize)));
 
-            const intersections: Vector[] = walls.map(wall => line.intersectionPointWithRectangle(wall.transform)!).filter(a => !!a);
+            const intersections: Vector[] = wallRectangles.map(rect => line.intersectionPointWithRectangle(rect)!).filter(a => !!a);
             intersections.push(Vector.scale(vector, visionRange).add(playerObjectCenter));
             intersections.sort((a, b) => {
                 return Vector.subtract(a, line.start).magnitude - Vector.subtract(b, line.start).magnitude;
             });
 
-            const grayLine = new Line(intersections[0], line.end);
-            grayLines.push(grayLine);
+            // const grayLine = new Line(line.start, intersections[0]);
+            visionPoints.push(intersections[0]);
         });
 
-        grayLines.forEach((grayLine, i) => {
-            const nextGrayLine = grayLines[(i + 1) % grayLines.length];
-            this.context.beginPath();
-            
-            const displayedGrayLine = this.cameraShiftLine(grayLine);
-            const displayedNextGrayLine = this.cameraShiftLine(nextGrayLine);
+        const vision = new Path2D();
 
-            this.context.strokeStyle = 'gray';
-            this.context.fillStyle = 'gray';
-            this.context.moveTo(displayedGrayLine.start.x, displayedGrayLine.start.y);
-            this.context.lineTo(displayedGrayLine.end.x, displayedGrayLine.end.y);
-            this.context.lineTo(displayedNextGrayLine.end.x, displayedNextGrayLine.end.y);
-            this.context.lineTo(displayedNextGrayLine.start.x, displayedNextGrayLine.start.y);
-            this.context.stroke();
-            this.context.fill();
-            this.context.closePath();
+        const point = this.cameraShiftVector(visionPoints[visionPoints.length - 1]);
+        vision.moveTo(point.x, point.y);
+
+        visionPoints.forEach((visionPoint, i) => {
+            const displayedVisionPoint = this.cameraShiftVector(visionPoint);
+            vision.lineTo(displayedVisionPoint.x, displayedVisionPoint.y);
         });
+        vision.closePath();
+
+        this.vision = vision;
     }
 
     // renderLines() {

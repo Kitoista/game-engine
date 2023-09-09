@@ -2,6 +2,7 @@ import { Component } from "./component";
 import { Serializable, Serializer } from "./serialize";
 import { Rectangle } from "./engine";
 import { Animator, Collider, Player, Rigidbody, SpriteRenderer } from "./components";
+import { Door } from "./components/door";
 
 export class GameObject implements Serializable {
     type = 'GameObject';
@@ -84,6 +85,11 @@ export class GameObject implements Serializable {
     getComponent<T extends Component>(constr: new (...agrs: any[]) => T): T {
         const re = this.components.find(component => component instanceof constr);
         return re as T ?? null;
+    }
+
+    getComponents<T extends Component>(constr: new (...agrs: any[]) => T): T[] {
+        const re = this.components.filter(component => component instanceof constr);
+        return re as T[];
     }
 
     sendMessage(functionName: string, ...args: any[]) {
