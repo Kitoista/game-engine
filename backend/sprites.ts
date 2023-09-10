@@ -1,4 +1,5 @@
 import { Sprite } from "./common/components";
+import { Vector } from "./common/engine";
 
 export const sprites: Sprite[] = [
     { name: 'Lux', src: 'assets/Lux.png' },
@@ -27,4 +28,14 @@ export const sprites: Sprite[] = [
     { name: 'Honey2_empty', src: 'assets/Honey2_empty.png' },
     { name: 'Honey3_full', src: 'assets/Honey3_full.png' },
     { name: 'Honey3_empty', src: 'assets/Honey3_empty.png' },
+    { name: 'Bed_back', src: 'assets/Bed_back.png', pivot: new Vector(0, 10) },
+    { name: 'Bed_front', src: 'assets/Bed_front.png', pivot: new Vector(0, 10) },
 ];
+
+export const getSprite = (name: string): Sprite => {
+    const re = sprites.find(sprite => name === sprite.name);
+    if (!re) {
+        throw 'No sprite called ' + name;
+    }
+    return re;
+}

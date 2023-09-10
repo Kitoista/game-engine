@@ -10,7 +10,7 @@ export const wallPrefab = (transform: Rectangle): GameObject => {
     const collider = re.addComponent(Collider);
     const spriteRenderer = re.addComponent(SpriteRenderer);
 
-    collider.bounds.position.y += 40;
-    collider.bounds.dimension.height -= 40;
+    collider.bounds.position.y += 20;
+    collider.bounds.dimension.height -= 20;
     return re;
 }

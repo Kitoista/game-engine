@@ -6,10 +6,10 @@ import { Rectangle, Vector } from './common/engine';
 import { GameObject } from './common/game-object';
 import { Serializer } from './common/serialize';
 import { sprites } from './sprites';
-import { Animator, Mob } from './common/components';
+import { Animator, Mob, Nurse, Pickable, Prankster } from './common/components';
 import { GameEvent } from './common/communicators';
 import { animations } from './animations';
-import { aiPrefab, doorPrefab, honey2Prefab, honey3Prefab, honeyPrefab, playerPrefab, wallPrefab } from './prefabs';
+import { aiPrefab, bedPrefab, doorPrefab, honey2Prefab, honey3Prefab, honeyPrefab, playerPrefab, wallPrefab } from './prefabs';
 
 const cors = require('cors');
 
@@ -54,6 +54,7 @@ const gameObjects: GameObject[] = [
     honeyPrefab(new Vector(300, 200)),
     honey2Prefab(new Vector(330, 200)),
     honey3Prefab(new Vector(340, 200)),
+    bedPrefab(new Vector(500, 250)),
     leader1,
     leader2,
     leader3,
@@ -81,6 +82,13 @@ const createPlayer = () => {
     game.addGameObject(player);
     const animator = player.getComponent(Animator);
     animator.animationMap = Object.values(animations)[players.length % Object.values(animations).length];
+    if (animator.animationMap === animations.Chansey) {
+        player.addComponent(Nurse);
+    } else {
+        player.addComponent(Prankster);
+        const pickable = player.addComponent(Pickable);
+        pickable.pickedRenderPriority = 5;
+    }
     players.push(player);
     if (addFollower) {
         const ai = aiPrefab(player);

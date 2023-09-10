@@ -1,12 +1,12 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { BehaviorSubject, Observable, interval } from 'rxjs';
+import { Observable, interval } from 'rxjs';
 import { Line, Rectangle, Vector } from 'src/common/engine';
 import { Game, GameMessage } from 'src/common/game';
 import { GameObject } from 'src/common/game-object';
 import { Serializer } from 'src/common/serialize';
 import { ImageLoaderService } from './image-loader.service';
-import { Collider, Mob, Player, SpriteRenderer } from 'src/common/components';
+import { Collider, Mob, Pickable, Player, SpriteRenderer } from 'src/common/components';
 import { ClientCommunicator } from 'src/common/communicators';
 import { BrowserEventHandler } from 'src/common/browser-event-handler';
 
@@ -52,8 +52,17 @@ export class GameService {
         new Line(0, 10, 0, 4),
     ];
 
+    sortedSpriteRenderers: SpriteRenderer[] = [];
+
     get mouseWorldPosition(): Vector {
         return Vector.subtract(this.mousePosition, Vector.scale(this.camera.position, -1));
+    }
+
+    get hoveredObject(): GameObject | null {
+        const hoveredSpriteRenderers = this.sortedSpriteRenderers.filter(spriteRenderer => {
+            return spriteRenderer.worldBounds.contains(this.mouseWorldPosition);
+        });
+        return hoveredSpriteRenderers[hoveredSpriteRenderers.length - 1]?.gameObject ?? null;
     }
 
     constructor(
@@ -79,6 +88,10 @@ export class GameService {
             this.mousePosition.x = event.clientX - rect.left;
             this.mousePosition.y = event.clientY - rect.top;
         };
+
+        this.canvas.onmousedown = event => {
+            console.log(this.hoveredObject);
+        }
 
         this.renderer.subscribe(() => {
             this.render();
@@ -145,7 +158,10 @@ export class GameService {
             this.renderVision();
         }
 
-        this.sortSpriteRenderers().forEach(sp => {
+        this.sortSpriteRenderers();
+
+        this.sortedSpriteRenderers.forEach(sp => {
+            // this.renderObject(sp.gameObject, sp);
             this.renderSprite(sp);
         });
 
@@ -169,16 +185,28 @@ export class GameService {
         }
     }
 
-    sortSpriteRenderers(): SpriteRenderer[] {
-        const spriteRenderers = this.game.gameObjects.map(go => go.getComponent(SpriteRenderer)).filter(sp => sp);
-        spriteRenderers.sort((a, b) => {
+    sortSpriteRenderers() {
+        this.sortedSpriteRenderers = this.game.gameObjects.map(go => go.getComponents(SpriteRenderer))
+            .reduce((arr, value) => {
+                arr.push(...value);
+                return arr;
+            }, []);
+        this.sortedSpriteRenderers.sort((a, b) => {
             const zDiff = b.zIndex - a.zIndex;
             if (zDiff !== 0) {
                 return zDiff;
             }
-            return a.transform.bottomLeft.y - b.transform.bottomLeft.y;
+            return a.sortValue - b.sortValue;
         });
-        return spriteRenderers;
+        // const sp = this.sortedSpriteRenderers.find(sp => sp.gameObject.id === 16)!;
+        // let holder: SpriteRenderer | null = null;
+        // if (sp.getComponent(Pickable).owner) {
+        //     holder = sp.getComponent(Pickable).owner!.getComponent(SpriteRenderer)!;
+        //     const aV = sp.sortValue;
+        //     const bV = holder.sortValue;
+        //     const cV = GameObject.getById(8)!.getComponent(SpriteRenderer).sortValue;
+        //     console.log('honey: ' + aV + ' holder ' + bV + ' diff ' + (bV - aV) + ' wall8 ' + cV);
+        // }
     }
 
     cursor() {
@@ -260,6 +288,12 @@ export class GameService {
             line.end.y + 15
         );
         this.context.fillText(Math.floor(line.v.angreDeg * 100) / 100 + '°', line.end.x + 5, line.end.y + 25);
+
+        const hoveredSpriteRenderer = this.hoveredObject?.getComponent(SpriteRenderer);
+        if (hoveredSpriteRenderer) {
+            this.context.fillText('object ' + hoveredSpriteRenderer.gameObject.id, line.end.x + 15, line.end.y + 5);
+        }
+
         this.context.moveTo(line.start.x, line.start.y);
         this.context.lineTo(line.end.x, line.end.y);
 
@@ -282,7 +316,11 @@ export class GameService {
         return Line.offset(line, Vector.scale(this.camera.position, -1));
     }
 
-    renderObject(go: GameObject) {
+    renderObject(go: GameObject, sp: SpriteRenderer) {
+        if (go.getComponents(SpriteRenderer).indexOf(sp) > 0) {
+            this.renderSprite(sp);
+            return;
+        }
         const colliders = go.getComponents(Collider);
         colliders.forEach(collider => {
             const renderedColliderRect = this.cameraShiftRectangle(collider.worldBounds);

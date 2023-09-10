@@ -6,7 +6,7 @@ import { GameObject } from "../common/game-object";
 
 export const mobPrefab = (): GameObject => {
     const mobObject = new GameObject();
-    mobObject.transform = new Rectangle(250, 250, 50, 50);
+    mobObject.transform = new Rectangle(250, 250, 30, 30);
     mobObject.collisionLayer = 1;
     
     const collider = mobObject.addComponent(Collider);
@@ -15,15 +15,17 @@ export const mobPrefab = (): GameObject => {
     const animator = mobObject.addComponent(Animator);
     const trigger = mobObject.addComponent(Collider);
     const mob = mobObject.addComponent(Mob);
-    const pickable = mobObject.addComponent(Pickable);
-    const prankster = mobObject.addComponent(Prankster);
 
+    collider.bounds.position.x = 5;
+    collider.bounds.position.y = 10;
     collider.bounds.dimension.height = 20;
     collider.bounds.dimension.width = 20;
-    collider.bounds.position.x = 15;
-    collider.bounds.position.y = 30;
 
     spriteRenderer.affectedByVision = true;
+    spriteRenderer.bounds.position.x = -10;
+    spriteRenderer.bounds.position.y = -20;
+    spriteRenderer.bounds.dimension.width = 50;
+    spriteRenderer.bounds.dimension.height = 50;
 
     animator.animationMap = animations.Eevee;
     animator.name = 'idle';

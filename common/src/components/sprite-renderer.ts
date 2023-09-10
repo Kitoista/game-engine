@@ -20,11 +20,21 @@ export class SpriteRenderer extends Component {
 
     zIndex = 0;
     zIndexUpdate = false;
+    yOffset = 0;
+    
     affectedByVision = false;
     affectedByVisionRange = false;
 
+    get sortValue(): number {
+        return this.transform.bottomLeft.y + this.yOffset;
+    }
+
     get worldBounds() {
-        return Rectangle.offset(this.bounds, this.transform.position);
+        const re = Rectangle.offset(this.bounds, this.transform.position);
+        if (this.sprite?.pivot) {
+            re.offset(this.sprite.pivot);
+        }
+        return re;
     }
 
     public constructor(gameObject: GameObject, id?: number) {

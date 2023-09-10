@@ -82,13 +82,13 @@ export class GameObject implements Serializable {
         return component;
     }
 
-    getComponent<T extends Component>(provider: { prototype: T } & Function): T {
-        const re = this.components.find(component => component instanceof provider);
+    getComponent<T extends Component>(provider: { prototype: T } & Function | string): T {
+        const re = this.components.find(component => typeof provider === 'string' ? component.type === provider : component instanceof provider);
         return re as T ?? null;
     }
 
-    getComponents<T extends Component>(provider: { prototype: T } & Function): T[] {
-        const re = this.components.filter(component => component instanceof provider);
+    getComponents<T extends Component>(provider: { prototype: T } & Function | string): T[] {
+        const re = this.components.filter(component => typeof provider === 'string' ? component.type === provider : component instanceof provider);
         return re as T[];
     }
 

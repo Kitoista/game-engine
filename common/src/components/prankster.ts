@@ -35,15 +35,6 @@ export class Prankster extends Component {
     onPickedBy(obj: GameObject) {
         if (Game.isServer) {
             this.mob.drop();
-            // const pickable = this.consumable.getComponent(Pickable);
-            // pickable.onGameEvent({
-            //     eventName: 'grab',
-            //     objectId: this.gameObject.id,
-            //     status: false,
-            //     data: {
-            //         otherObjectId: pickable.gameObject.id
-            //     }
-            // });
         }
     }
 

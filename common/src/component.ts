@@ -33,12 +33,12 @@ export abstract class Component implements Serializable  {
     update() {
     }
 
-    getComponent<T extends Component>(constr: new (...agrs: any[]) => T): T {
-        return this.gameObject.getComponent(constr);
+    getComponent<T extends Component>(provider: { prototype: T } & Function | string): T {
+        return this.gameObject.getComponent(provider);
     }
 
-    getComponents<T extends Component>(constr: new (...agrs: any[]) => T): T[] {
-        return this.gameObject.getComponents(constr);
+    getComponents<T extends Component>(provider: { prototype: T } & Function | string): T[] {
+        return this.gameObject.getComponents(provider);
     }
 
     serialize(): any {

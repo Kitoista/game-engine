@@ -3,15 +3,26 @@ import { Component } from "../component";
 import { Vector } from "../engine";
 import { GameObject } from "../game-object";
 import { Serializer } from "../serialize";
+import { Bed } from "./bed";
 import { Interactable } from "./interactable";
+import { Nurse } from "./nurse";
+import { Prankster } from "./prankster";
 import { Rigidbody } from "./rigidbody";
+import { SpriteRenderer } from "./sprite-renderer";
 
 export class Pickable extends Interactable {
     type = 'Pickable';
 
     owner: GameObject | null = null;
 
-    offset = new Vector(0, 5);
+    private originalYOffset = 0;
+    pickedRenderPriority = 0;
+    spriteRenderer!: SpriteRenderer;
+
+    override start() {
+        this.spriteRenderer = this.getComponent(SpriteRenderer);
+        this.originalYOffset = this.spriteRenderer.yOffset;
+    }
 
     override update() {
         this.setPosition();
@@ -24,7 +35,10 @@ export class Pickable extends Interactable {
                 rigidbody.setFreeze(gameEvent.status);
             }
             if (!gameEvent.status && this.owner) {
-                this.transform.position.subtract(this.offset);
+                this.spriteRenderer.yOffset = this.originalYOffset;
+            }
+            if (gameEvent.status) {
+                this.spriteRenderer.yOffset = this.pickedRenderPriority;
             }
             const owner = GameObject.getById(gameEvent.objectId);
             if (owner) {
@@ -46,12 +60,16 @@ export class Pickable extends Interactable {
 
     setPosition() {
         if (this.owner) {
-            this.transform.position = Vector.subtract(this.owner!.transform.middle, Vector.scale(this.transform.dimension, 0.5)).add(this.offset);
+            this.transform.position = Vector.subtract(this.owner!.transform.middle, Vector.scale(this.transform.dimension, 0.5));
+            // this.transform.position = this.owner!.transform.middle;
         }
     }
 
     override canInteract(go: GameObject): boolean {
-        return !go.getComponent(Pickable)?.owner;
+        const owner = go.getComponent(Pickable)?.owner;
+        return (!owner || owner.getComponent(Bed)) && 
+            (!this.getComponent(Prankster) || go.getComponent(Nurse) || go.getComponent(Bed)) &&
+            !this.getComponent(Nurse);
     }
 }
 

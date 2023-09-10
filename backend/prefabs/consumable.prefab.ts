@@ -14,8 +14,11 @@ export const consumablePrefab = (transform: Rectangle, animationMap: AnimationMa
     
     const spriteRenderer = re.addComponent(SpriteRenderer);
     const animator = re.addComponent(Animator);
-    
+
+    pickable.pickedRenderPriority = 20;
+
     spriteRenderer.affectedByVision = true;
+
     animator.animationMap = animationMap;
     animator.name = 'full';
 
