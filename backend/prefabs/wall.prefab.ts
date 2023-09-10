@@ -1,6 +1,6 @@
-import { Collider, SpriteRenderer } from "../components";
-import { Rectangle } from "../engine";
-import { GameObject } from "../game-object";
+import { Collider, SpriteRenderer } from "../common/components";
+import { Rectangle } from "../common/engine";
+import { GameObject } from "../common/game-object";
 
 export const wallPrefab = (transform: Rectangle): GameObject => {
     const re = new GameObject();

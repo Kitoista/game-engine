@@ -1,7 +1,7 @@
-import { Collider, Rigidbody, SpriteRenderer } from "../components";
-import { Door } from "../components/door";
-import { Rectangle, Vector } from "../engine";
-import { GameObject } from "../game-object";
+import { Collider, Door, Rigidbody, SpriteRenderer } from "../common/components";
+import { Rectangle, Vector } from "../common/engine";
+import { GameObject } from "../common/game-object";
+
 
 export const doorPrefab = (transform: Rectangle, openedPosition: Vector): GameObject => {
     const re = new GameObject();

@@ -43,7 +43,7 @@ export class GameObject implements Serializable {
         this.components.forEach(component => component.update());
     }
 
-    public static getById(id: number): GameObject | null {
+    public static getById(id?: number): GameObject | null {
         return this.gameObjects.find(go => go.id === id) ?? null;
     }
 
@@ -82,13 +82,13 @@ export class GameObject implements Serializable {
         return component;
     }
 
-    getComponent<T extends Component>(constr: new (...agrs: any[]) => T): T {
-        const re = this.components.find(component => component instanceof constr);
+    getComponent<T extends Component>(provider: { prototype: T } & Function): T {
+        const re = this.components.find(component => component instanceof provider);
         return re as T ?? null;
     }
 
-    getComponents<T extends Component>(constr: new (...agrs: any[]) => T): T[] {
-        const re = this.components.filter(component => component instanceof constr);
+    getComponents<T extends Component>(provider: { prototype: T } & Function): T[] {
+        const re = this.components.filter(component => component instanceof provider);
         return re as T[];
     }
 

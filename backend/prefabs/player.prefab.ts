@@ -1,5 +1,5 @@
-import { Player } from "../components";
-import { GameObject } from "../game-object";
+import { Player } from "../common/components";
+import { GameObject } from "../common/game-object";
 import { mobPrefab } from "./mob.prefab";
 
 export const playerPrefab = (): GameObject => {

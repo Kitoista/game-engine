@@ -2,7 +2,7 @@ import { Component } from "../component";
 import { Rectangle, Vector } from "../engine";
 import { Game } from "../game";
 import { Serializer } from "../serialize";
-import { Collider, Collision } from "./collider";
+import { Collider } from "./collider";
 
 export class Rigidbody extends Component {
     type = 'Rigidbody';
@@ -10,10 +10,24 @@ export class Rigidbody extends Component {
     gravity = false;
     velocity = new Vector();
 
+    freezeX = false;
+    freezeY = false;
+
+    setFreeze(value: boolean) {
+        this.freezeX = value;
+        this.freezeY = value;
+    }
+
     override update() {
         const gameObject = this.gameObject;
         const colliders = gameObject.getComponents(Collider);
         const others = Collider.canCollideWith(colliders[0]);
+        if (this.freezeX) {
+            this.velocity.x = 0;
+        }
+        if (this.freezeY) {
+            this.velocity.y = 0;
+        }
         if ((this.velocity.x === 0 && this.velocity.y === 0)) {
             colliders.forEach(collider => {
                 const wouldCollideWith = Collider.wouldCollideWithTheseHere(collider, others, collider.transform);

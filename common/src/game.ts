@@ -30,6 +30,7 @@ export class Game {
     static refreshRate = 30;
     static smoothness = 1;
     static time = 0;
+    static timeDiff = 0;
 
     static instance: Game;
 
@@ -62,6 +63,9 @@ export class Game {
 
     applyState(stateJson: GameState) {
         const state: GameState = Serializer.deserialize(stateJson);
+        if (Game.time) {
+            Game.timeDiff = state.timestamp - Game.time;
+        }
         Game.time = state.timestamp;
 
         state.gameObjects.forEach(go => {

@@ -6,7 +6,7 @@ import { Game, GameMessage } from 'src/common/game';
 import { GameObject } from 'src/common/game-object';
 import { Serializer } from 'src/common/serialize';
 import { ImageLoaderService } from './image-loader.service';
-import { Collider, Player, SpriteRenderer } from 'src/common/components';
+import { Collider, Mob, Player, SpriteRenderer } from 'src/common/components';
 import { ClientCommunicator } from 'src/common/communicators';
 import { BrowserEventHandler } from 'src/common/browser-event-handler';
 
@@ -28,6 +28,9 @@ export class GameService {
     get playerObject(): GameObject | null {
         return Game.instance.playerObject;
     };
+    get playerMob(): Mob | null {
+        return this.playerObject?.getComponent(Mob) ?? null;
+    }
     get player(): Player | null {
         return this.playerObject?.getComponent(Player) ?? null;
     }
@@ -104,7 +107,8 @@ export class GameService {
     onInit() {
         this.game = new Game();
         this.eventHandler = new BrowserEventHandler(this.game);
-        this.eventHandler.init();
+        this.eventHandler.canvasToWorldCoordinates = (vector: Vector) => Vector.add(vector, this.camera.position);
+        this.eventHandler.init(this.canvas);
     }
 
     onNewGameMessage(gameMessage: GameMessage) {
@@ -232,7 +236,7 @@ export class GameService {
         if (isAffectedByVisionRange) {
             this.context.save();
             const playerWorldCenter = this.cameraShiftVector(this.playerCenter);
-            this.context.arc(playerWorldCenter.x, playerWorldCenter.y, this.player!.visionRange, 0, 2 * Math.PI, false);
+            this.context.arc(playerWorldCenter.x, playerWorldCenter.y, this.playerMob!.visionRange, 0, 2 * Math.PI, false);
             this.context.clip();
         }
         if (!isAffectedByVision || this.clipVision(visionBounds)) {
@@ -344,7 +348,7 @@ export class GameService {
         const playerObjectCenter = this.playerCenter;
         const stepSize = 0.5;
         const screenSize = new Vector(this.camera.dimension).magnitude / 1.5;
-        const visionRange = this.playerObject?.getComponent(Player).visionRange!;
+        const visionRange = this.playerMob!.visionRange!;
         
         const wallRectangles = this.game.gameObjects.filter(go => go.id !== this.playerObject?.id && go.collisionLayer === 0).map(go => {
             const collider = go.getComponent(Collider);

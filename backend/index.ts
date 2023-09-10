@@ -4,14 +4,12 @@ import { interval } from 'rxjs';
 import { Game, GameMessage } from './common/game';
 import { Rectangle, Vector } from './common/engine';
 import { GameObject } from './common/game-object';
-import { playerPrefab } from './common/prefabs/player.prefab';
 import { Serializer } from './common/serialize';
-import { wallPrefab } from './common/prefabs/wall.prefab';
 import { sprites } from './sprites';
-import { Animator, Player } from './common/components';
-import { MobInputEvent } from './common/communicators';
-import { doorPrefab } from './common/prefabs/door.prefab';
-import { aiPrefab } from './common/prefabs/ai.prefab';
+import { Animator, Mob } from './common/components';
+import { GameEvent } from './common/communicators';
+import { animations } from './animations';
+import { aiPrefab, doorPrefab, honey2Prefab, honey3Prefab, honeyPrefab, playerPrefab, wallPrefab } from './prefabs';
 
 const cors = require('cors');
 
@@ -26,26 +24,46 @@ enum Layer {
 };
 const layers: number[] = Object.values(Layer).filter(v => typeof v === 'number') as any;
 
-const wall1 = wallPrefab(new Rectangle(100, 400, 500, 50));
-const wall2 = wallPrefab(new Rectangle(50, 300, 50, 150));
-const wall3 = wallPrefab(new Rectangle(600, 260, 50, 190));
-const wall4 = wallPrefab(new Rectangle(50, 100, 600, 50));
-const wall5 = wallPrefab(new Rectangle(150, 200, 50, 150));
-const wall6 = wallPrefab(new Rectangle(650, 100, 50, 150));
-
-const door = doorPrefab(new Rectangle(650, 250, 20, 50), new Vector(650, 300));
-
-const gameObjects: GameObject[] = [
-    wall1,
-    wall2,
-    wall3,
-    wall4,
-    wall5,
-    wall6,
-    door,
-];
+const leader1 = aiPrefab();
+const leader2 = aiPrefab(leader1);
+const leader3 = aiPrefab(leader2);
+const leader4 = aiPrefab(leader3);
 
 const game = new Game(layers);
+const mainThread = interval(Game.baseTickRate);
+const eventStreams: Record<string, any>[] = [];
+const players: GameObject[] = [];
+const ais: GameObject[] = [];
+
+const addFollower = false;
+
+const gameObjects: GameObject[] = [
+    wallPrefab(new Rectangle(100, 400, 500, 50)),
+    wallPrefab(new Rectangle(50, 300, 50, 150)),
+    wallPrefab(new Rectangle(600, 260, 50, 190)),
+    wallPrefab(new Rectangle(50, 100, 600, 50)),
+    wallPrefab(new Rectangle(150, 200, 50, 150)),
+    wallPrefab(new Rectangle(650, 100, 50, 150)),
+
+    wallPrefab(new Rectangle(0, 0, 1000, 50)),
+    wallPrefab(new Rectangle(0, 0, 50, 1050)),
+    wallPrefab(new Rectangle(950, 0, 50, 1050)),
+    wallPrefab(new Rectangle(0, 1000, 1000, 50)),
+    
+    doorPrefab(new Rectangle(650, 250, 20, 50), new Vector(650, 300)),
+    honeyPrefab(new Vector(300, 200)),
+    honey2Prefab(new Vector(330, 200)),
+    honey3Prefab(new Vector(340, 200)),
+    leader1,
+    leader2,
+    leader3,
+    leader4,
+    aiPrefab(leader1),
+    aiPrefab(leader2),
+    aiPrefab(leader3),
+    aiPrefab(leader4),
+];
+
 
 game.setCollisionPair(Layer.WALLS, Layer.PLAYERS, true);
 
@@ -61,24 +79,14 @@ game.applyState({
 const createPlayer = () => {
     const player = playerPrefab();
     game.addGameObject(player);
+    const animator = player.getComponent(Animator);
+    animator.animationMap = Object.values(animations)[players.length % Object.values(animations).length];
     players.push(player);
-    if (players.length % 2 === 0) {
-        player.getComponent(Animator).animationMap = {
-            'idle': [
-                { sprite: { name: 'Skitty_idle_1' }, duration: 500 },
-                { sprite: { name: 'Skitty_idle_2' }, duration: 250 },
-            ],
-            'moving': [
-                { sprite: { name: 'Skitty_moving_1' }, duration: 100 },
-                { sprite: { name: 'Skitty_moving_2' }, duration: 75 },
-                { sprite: { name: 'Skitty_moving_2' }, duration: 25 },
-                { sprite: { name: 'Skitty_moving_4' }, duration: 100 },
-            ]
-        }
+    if (addFollower) {
+        const ai = aiPrefab(player);
+        game.addGameObject(ai);
+        ais.push(ai);
     }
-    const ai = aiPrefab(player);
-    game.addGameObject(ai);
-    ais.push(ai);
 };
 
 const sendSprites = (eventStream: any) => {
@@ -108,10 +116,6 @@ const createGameMessage = (connectionId: number, timestamp?: number): GameMessag
     return gameMessage;
 }
 
-const mainThread = interval(Game.baseTickRate);
-const eventStreams: Record<string, any>[] = [];
-const players: GameObject[] = [];
-const ais: GameObject[] = [];
 
 const broadcast = () => {
     eventStreams.forEach((eventStream, i) => {
@@ -123,16 +127,14 @@ const broadcast = () => {
 }
 
 const mainSub = mainThread.subscribe(i => {
+    if (Game.time) {
+        Game.timeDiff = Date.now() - Game.time;
+    }
     Game.time = Date.now();
     game.tick();
     if (i % (Game.refreshRate / Game.baseTickRate) === 0) {
-        // console.log('broadcast');
         broadcast();
     }
-    // if (i % (3 * Game.smoothness) === 0) {
-    //     console.log('REE');
-    //     player.transform.position = new Vector();
-    // }
 });
 
 app.use(cors());
@@ -158,18 +160,24 @@ app.get('/streaming', (req, res) => {
         eventStreams.splice(connectionId, 1);
         const player = players.splice(connectionId, 1)[0];
         game.gameObjects.splice(game.gameObjects.indexOf(player), 1);
-        const ai = ais.splice(connectionId, 1)[0];
-        game.gameObjects.splice(game.gameObjects.indexOf(ai), 1);
+        if (addFollower) {
+            const ai = ais.splice(connectionId, 1)[0];
+            game.gameObjects.splice(game.gameObjects.indexOf(ai), 1);
+        }
         res.end();
     });
 });
 
-app.post('/mob-input-event', (req, res) => {
+app.post('/game-event', (req, res) => {
     lagSimulator(() => {
-        const event: MobInputEvent = req.body;
-        const player = GameObject.getById(event.objectId)?.getComponent(Player);
-        if (player) {
-            player.mobInputEvents.push(event);
+        const event: GameEvent = req.body;
+        const go = GameObject.getById(event.objectId);
+        const other = GameObject.getById(event.data?.otherObjectId);
+        if (go) {
+            go.sendMessage('onGameEvent', event);
+        }
+        if (other) {
+            other.sendMessage('onGameEvent', event);
         }
     });
 
